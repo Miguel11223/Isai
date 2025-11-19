@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tarjeta de Débito Virtual</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/jwt-decode@3.1.2/build/jwt-decode.js"></script>
+    <style>
+        .card-container {
+            perspective: 1000px;
+        }
+        .card {
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+        .card:hover {
+            transform: rotateY(10deg) rotateX(5deg);
+        }
+        .card-front {
+            backface-visibility: hidden;
+        }
+
+        /* Botón flotante de Cafetería */
+        #cafeteriaBtn {
+            position: fixed;
+            right: 1rem;
+            bottom: 1.5rem;
+            background: linear-gradient(to right, #f59e0b, #f97316);
+            color: white;
+            padding: 1rem;
+            border-radius: 50%;
+            box-shadow: 0 8px 20px rgba(249, 115, 22, 0.4);
+            z-index: 60;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        #cafeteriaBtn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 25px rgba(249, 115, 22, 0.5);
+        }
+
+        /* Ventana de Cafetería */
+        .cafeteria-window {
+            position: fixed;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 340px;
+            background: white;
+            border-radius: 1.5rem;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            z-index: 55;
+            animation: slideIn 0.5s ease-out;
+            display: none;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(120%) translateY(-50%); opacity: 0; }
+            to { transform: translateX(0) translateY(-50%); opacity: 1; }
+        }
+        .cafeteria-header {
+            background: linear-gradient(to right, #f59e0b, #f97316);
+            color: white;
+            padding: 1rem;
+            font-weight: bold;
+            text-align: center;
+            font-size: 1.2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .close-btn {
+            background: rgba(255,255,255,0.2);
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .cafeteria-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            transition: background 0.2s;
+        }
+        .cafeteria-item:hover {
+            background: #f9fafb;
+        }
+        .cafeteria-item img {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 0.75rem;
+            margin-right: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .item-info {
+            flex: 1;
+        }
+        .item-name {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        .item-price {
+            color: #f59e0b;
+            font-weight: bold;
+        }
+        .stock {
+            font-size: 0.8rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-weight: bold;
+        }
+        .stock-low { background: #fee2e2; color: #dc2626; }
+        .stock-medium { background: #fff7ed; color: #f59e0b; }
+        .stock-high { background: #f0fdf4; color: #10b981; }
+
+        .order-btn {
+            background: #10b981;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.75rem;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .order-btn:hover {
+            background: #059669;
+            transform: scale(1.05);
+        }
+        .order-btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+    </style>
+</head>
+<body class="bg-green-50 min-h-screen flex flex-col items-center justify-center p-4 relative">
+
+    <!-- BOTÓN FLOTANTE DE CAFETERÍA (solo visible tras login) -->
+    <div id="cafeteriaBtn" class="hidden" onclick="toggleCafeteria()">
+        Café
+    </div>
+
+    <!-- VENTANA DE CAFETERÍA -->
+    <div id="cafeteriaWindow" class="cafeteria-window">
+        <div class="cafeteria-header">
+            <span>Menú del Día</span>
+            <div class="close-btn" onclick="toggleCafeteria()">×</div>
+        </div>
+        <div id="menuItems" class="text-sm">
+            <!-- Los ítems se generan con JS -->
+        </div>
+    </div>
+
+    <!-- Formulario de Registro -->
+    <div id="registerContainer" class="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 m-4 hidden">
+        <h1 class="text-3xl font-extrabold text-center text-green-800 mb-6">Registrarse</h1>
+        <div class="space-y-4">
+            <div>
+                <label for="regUsername" class="block text-sm font-medium text-green-800">Usuario</label>
+                <input type="text" id="regUsername" placeholder="Ej: nuevo_usuario" class="mt-1 block w-full p-3 border border-green-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition">
+            </div>
+            <div>
+                <label for="regPassword" class="block text-sm font-medium text-green-800">Contraseña (mín. 6 caracteres)</label>
+                <input type="password" id="regPassword" placeholder="Contraseña" class="mt-1 block w-full p-3 border border-green-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition">
+            </div>
+            <div>
+                <label for="regFullName" class="block text-sm font-medium text-green-800">Nombre Completo</label>
+                <input type="text" id="regFullName" placeholder="Ej: María López" class="mt-1 block w-full p-3 border border-green-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition">
+            </div>
+            <button onclick="register()" class="w-full bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 transition font-semibold">Registrarse</button>
+            <button onclick="showLogin()" class="w-full bg-gray-500 text-white p-3 rounded-lg hover:bg-gray-600 transition">Ya tengo cuenta</button>
+        </div>
+    </div>
+
+    <!-- Formulario de Login -->
+    <div id="loginContainer" class="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 m-4">
+        <h1 class="text-3xl font-extrabold text-center text-green-800 mb-6">Iniciar Sesión</h1>
+        <div class="space-y-4">
+            <div>
+                <label for="username" class="block text-sm font-medium text-green-800">Usuario</label>
+                <input type="text" id="username" placeholder="Ej: juanperez" class="mt-1 block w-full p-3 border border-green-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition">
+            </div>
+            <div>
+                <label for="password" class="block text-sm font-medium text-green-800">Contraseña</label>
+                <input type="password" id="password" placeholder="Contraseña" class="mt-1 block w-full p-3 border border-green-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition">
+            </div>
+            <button onclick="login()" class="w-full bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 transition font-semibold">Iniciar Sesión</button>
+            <button onclick="showRegister()" class="w-full bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 transition">Registrarse</button>
+        </div>
+    </div>
+
+    <!-- Interfaz Principal -->
+    <div id="mainContainer" class="max-w-3xl w-full bg-white rounded-2xl shadow-xl p-8 m-4 hidden">
+        <h1 class="text-4xl font-extrabold text-center text-green-800 mb-8">Tarjeta de Débito Virtual</h1>
+        
+        <!-- Tarjeta Virtual -->
+        <div class="card-container mb-8">
+            <div class="card relative w-full max-w-md mx-auto h-56 bg-gradient-to-br from-green-500 to-green-700 rounded-xl shadow-lg p-6 text-white">
+                <div class="card-front absolute inset-0 flex flex-col justify-between">
+                    <div class="flex justify-between items-center">
+                        <span class="text-lg font-semibold">Débito Virtual</span>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-mono tracking-wider" id="cardNumber">1234 5678 9012 3456</p>
+                        <p class="text-sm">Titular: <span id="cardHolder">Juan Pérez</span></p>
+                    </div>
+                    <div class="flex justify-between">
+                        <p class="text-sm">Válida hasta: <span id="expiryDate">12/28</span></p>
+                        <p class="text-sm">CVV: <span id="cvv">123</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Saldo -->
+        <div class="bg-gradient-to-r from-green-600 to-green-800 text-white p-6 rounded-xl mb-8 text-center">
+            <p class="text-lg font-medium">Saldo Actual</p>
+            <p class="text-5xl font-bold">$<span id="balance">0.00</span></p>
+        </div>
+
+        <!-- Formulario de Transacciones -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div>
+                <label for="amount" class="block text-sm font-medium text-green-800">Monto</label>
+                <input type="number" id="amount" placeholder="Ej: 100.00" step="0.01" required class="mt-1 block w-full p-3 border border-green-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition">
+            </div>
+            <div>
+                <label for="type" class="block text-sm font-medium text-green-800">Tipo</label>
+                <select id="type" class="mt-1 block w-full p-3 border border-green-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition">
+                    <option value="ingreso">Ingreso</option>
+                    <option value="gasto">Gasto</option>
+                </select>
+            </div>
+            <div>
+                <label for="category" class="block text-sm font-medium text-green-800">Categoría</label>
+                <select id="category" class="mt-1 block w-full p-3 border border-green-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition">
+                    <option value="general">General</option>
+                    <option value="alimentación">Alimentación</option>
+                    <option value="transporte">Transporte</option>
+                    <option value="entretenimiento">Entretenimiento</option>
+                    <option value="salud">Salud</option>
+                    <option value="otros">Otros</option>
+                </select>
+            </div>
+            <div>
+                <label for="date" class="block text-sm font-medium text-green-800">Fecha</label>
+                <input type="date" id="date" class="mt-1 block w-full p-3 border border-green-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition" required>
+            </div>
+            <div class="md:col-span-2">
+                <label for="description" class="block text-sm font-medium text-green-800">Descripción</label>
+                <input type="text" id="description" placeholder="Ej: Compra en supermercado" required class="mt-1 block w-full p-3 border border-green-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition">
+            </div>
+        </div>
+        <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+            <button onclick="addTransaction()" class="flex-1 bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 transition font-semibold">Agregar Transacción</button>
+            <button onclick="generateReport()" class="flex-1 bg-teal-600 text-white p-3 rounded-lg hover:bg-teal-700 transition font-semibold">Generar Reporte</button>
+            <button onclick="logout()" class="flex-1 bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 transition font-semibold">Cerrar Sesión</button>
+        </div>
+
+        <!-- Filtros -->
+        <div class="mt-8">
+            <h2 class="text-2xl font-semibold text-green-800 mb-4">Filtros</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label for="filterCategory" class="block text-sm font-medium text-green-800">Categoría</label>
+                    <select id="filterCategory" onchange="filterTransactions()" class="mt-1 block w-full p-3 border border-green-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition">
+                        <option value="all">Todas</option>
+                        <option value="general">General</option>
+                        <option value="alimentación">Alimentación</option>
+                        <option value="transporte">Transporte</option>
+                        <option value="entretenimiento">Entretenimiento</option>
+                        <option value="salud">Salud</option>
+                        <option value="otros">Otros</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="startDate" class="block text-sm font-medium text-green-800">Fecha Inicio</label>
+                    <input type="date" id="startDate" onchange="filterTransactions()" class="mt-1 block w-full p-3 border border-green-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition">
+                </div>
+                <div>
+                    <label for="endDate" class="block text-sm font-medium text-green-800">Fecha Fin</label>
+                    <input type="date" id="endDate" onchange="filterTransactions()" class="mt-1 block w-full p-3 border border-green-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition">
+                </div>
+            </div>
+        </div>
+
+        <!-- Historial -->
+        <h2 class="text-2xl font-semibold text-green-800 mt-8 mb-4">Historial de Transacciones</h2>
+        <ul id="transactionList" class="space-y-3"></ul>
+    </div>
+
+    <script>
+        let balance = 0;
+        let transactions = [];
+
+        // Menú de Cafetería (imágenes predefinidas)
+        const cafeteriaMenu = [
+            { name: "Café Espresso", price: 25.0, stock: 18, img: "https://images.unsplash.com/photo-1494314671902-399b18174975?w=100&h=100&fit=crop" },
+            { name: "Medialuna", price: 18.0, stock: 7, img: "https://www.minutoneuquen.com/u/fotografias/fotosnoticias/2023/5/30/605420.jpg" },
+            { name: "Jugo de Naranja", price: 30.0, stock: 12, img: "https://5aldia.cl/wp-content/uploads/2018/04/jugo-de-naranja-destacado.jpg" },
+            { name: "Tostado Jamón y Queso", price: 55.0, stock: 3, img: "https://images.unsplash.com/photo-1528207776546-365bb710ee93?w=100&h=100&fit=crop" },
+            { name: "Agua Mineral", price: 15.0, stock: 25, img: "https://th.bing.com/th/id/R.55147f49d6a96ca7bd948ef87e31f52d?rik=XnEg%2bQGgJdw9EA&pid=ImgRaw&r=0" }
+        ];
+
+        // Mostrar/Ocultar Cafetería
+        function toggleCafeteria() {
+            const window = document.getElementById('cafeteriaWindow');
+            window.style.display = window.style.display === 'block' ? 'none' : 'block';
+        }
+
+        // Renderizar menú
+        function renderMenu() {
+            const container = document.getElementById('menuItems');
+            container.innerHTML = '';
+            cafeteriaMenu.forEach(item => {
+                const stockClass = item.stock > 15 ? 'stock-high' : item.stock > 5 ? 'stock-medium' : 'stock-low';
+                const disabled = item.stock === 0 ? 'disabled' : '';
+                const div = document.createElement('div');
+                div.className = 'cafeteria-item';
+                div.innerHTML = `
+                    <img src="${item.img}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/60?text=Imagen'">
+                    <div class="item-info">
+                        <div class="item-name">${item.name}</div>
+                        <div class="item-price">$${item.price.toFixed(2)}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="stock ${stockClass}">Stock: ${item.stock}</div>
+                        <button class="order-btn mt-2" ${disabled} onclick="orderItem('${item.name}', ${item.price})">
+                            Pedir
+                        </button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Hacer pedido
+        function orderItem(name, price) {
+            if (balance < price) {
+                alert(`Saldo insuficiente. Necesitas $${price.toFixed(2)}, tienes $${balance.toFixed(2)}`);
+                return;
+            }
+
+            const today = new Date().toISOString().split('T')[0];
+            const description = `Pedido en cafetería: ${name}`;
+
+            // Registrar como gasto
+            const transaction = {
+                amount: price,
+                type: 'gasto',
+                category: 'alimentación',
+                date: new Date(today).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                description
+            };
+
+            transactions.push(transaction);
+            balance -= price;
+            document.getElementById('balance').textContent = balance.toFixed(2);
+            updateTransactionList();
+
+            // Actualizar stock
+            const item = cafeteriaMenu.find(i => i.name === name);
+            if (item) item.stock--;
+            renderMenu();
+
+            alert(`¡Pedido realizado! $${price.toFixed(2)} descontados.`);
+        }
+
+        // Mostrar formulario de registro
+        function showRegister() {
+            document.getElementById('loginContainer').classList.add('hidden');
+            document.getElementById('registerContainer').classList.remove('hidden');
+        }
+
+        // Mostrar formulario de login
+        function showLogin() {
+            document.getElementById('registerContainer').classList.add('hidden');
+            document.getElementById('loginContainer').classList.remove('hidden');
+        }
+
+        // Registro
+        async function register() {
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const fullName = document.getElementById('regFullName').value.trim();
+
+            if (!username || !password || !fullName) {
+                alert('Por favor, complete todos los campos.');
+                return;
+            }
+            if (password.length < 6) {
+                alert('La contraseña debe tener al menos 6 caracteres.');
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:3000/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, fullName })
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    alert(data.error);
+                    return;
+                }
+
+                localStorage.setItem('token', data.token);
+                initApp(data.token);
+            } catch (e) {
+                alert('Error al conectar con el servidor');
+            }
+        }
+
+        // Login
+        async function login() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('http://localhost:3000/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    alert(data.error);
+                    return;
+                }
+
+                localStorage.setItem('token', data.token);
+                initApp(data.token);
+            } catch (e) {
+                alert('Error al conectar con el servidor');
+            }
+        }
+
+        // Inicializar app después de login
+        function initApp(token) {
+            const decoded = jwt_decode(token);
+            document.getElementById('cardHolder').textContent = decoded.fullName;
+            document.getElementById('cardNumber').textContent = decoded.cardNumber;
+            document.getElementById('cvv').textContent = decoded.cvv;
+            document.getElementById('expiryDate').textContent = decoded.expiryDate;
+
+            document.getElementById('loginContainer').classList.add('hidden');
+            document.getElementById('registerContainer').classList.add('hidden');
+            document.getElementById('mainContainer').classList.remove('hidden');
+
+            // Mostrar botón de cafetería
+            document.getElementById('cafeteriaBtn').classList.remove('hidden');
+            renderMenu();
+            loadTransactions();
+        }
+
+        // Logout
+        function logout() {
+            localStorage.removeItem('token');
+            document.getElementById('mainContainer').classList.add('hidden');
+            document.getElementById('loginContainer').classList.remove('hidden');
+            document.getElementById('cafeteriaBtn').classList.add('hidden');
+            document.getElementById('cafeteriaWindow').style.display = 'none';
+            transactions = [];
+            balance = 0;
+            document.getElementById('balance').textContent = '0.00';
+            updateTransactionList();
+        }
+
+        // Cargar transacciones
+        async function loadTransactions() {
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch('http://localhost:3000/transactions', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                if (data.error) {
+                    alert(data.error);
+                    logout();
+                    return;
+                }
+                transactions = data.map(t => ({
+                    id: t.id,
+                    amount: parseFloat(t.amount),
+                    type: t.type,
+                    category: t.category,
+                    date: new Date(t.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                    description: t.description
+                }));
+                balance = transactions.reduce((acc, t) => acc + (t.type === 'ingreso' ? t.amount : -t.amount), 0);
+                document.getElementById('balance').textContent = balance.toFixed(2);
+                updateTransactionList();
+            } catch (e) {
+                alert('Error al cargar transacciones');
+            }
+        }
+
+        // Verificar token al cargar
+        window.onload = () => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                try {
+                    initApp(token);
+                } catch (e) {
+                    console.error('Token inválido');
+                }
+            }
+        };
+
+        async function addTransaction() {
+            const amount = parseFloat(document.getElementById('amount').value);
+            const type = document.getElementById('type').value;
+            const category = document.getElementById('category').value;
+            const date = document.getElementById('date').value;
+            const description = document.getElementById('description').value;
+
+            if (isNaN(amount) || amount <= 0) {
+                alert('Por favor, ingrese un monto válido.');
+                return;
+            }
+            if (!description || !date) {
+                alert('Por favor, complete todos los campos.');
+                return;
+            }
+
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch('http://localhost:3000/transactions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ amount, type, category, date, description })
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    alert(data.error);
+                    return;
+                }
+
+                const transaction = {
+                    id: transactions.length + 1,
+                    amount,
+                    type,
+                    category,
+                    date: new Date(date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                    description
+                };
+                transactions.push(transaction);
+                balance += type === 'ingreso' ? amount : -amount;
+                document.getElementById('balance').textContent = balance.toFixed(2);
+                updateTransactionList();
+
+                document.getElementById('amount').value = '';
+                document.getElementById('description').value = '';
+                document.getElementById('date').value = '';
+            } catch (e) {
+                alert('Error al guardar transacción');
+            }
+        }
+
+        function updateTransactionList(filteredTransactions = transactions) {
+            const list = document.getElementById('transactionList');
+            list.innerHTML = '';
+            filteredTransactions.forEach(transaction => {
+                const li = document.createElement('li');
+                li.className = 'p-4 bg-green-50 rounded-lg shadow-sm';
+                li.innerHTML = `
+                    <div class="flex justify-between">
+                        <span>${transaction.date}</span>
+                        <span class="${transaction.type === 'ingreso' ? 'text-green-600' : 'text-red-600'} font-semibold">
+                            ${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}: $${transaction.amount.toFixed(2)}
+                        </span>
+                    </div>
+                    <div class="text-sm text-gray-600">${transaction.category} | ${transaction.description}</div>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        function filterTransactions() {
+            const filterCategory = document.getElementById('filterCategory').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+                alert('La fecha de fin debe ser posterior a la de inicio.');
+                return;
+            }
+
+            let filteredTransactions = transactions;
+
+            if (filterCategory !== 'all') {
+                filteredTransactions = filteredTransactions.filter(t => t.category === filterCategory);
+            }
+
+            if (startDate) {
+                filteredTransactions = filteredTransactions.filter(t => new Date(t.date.split('/').reverse().join('-')) >= new Date(startDate));
+            }
+
+            if (endDate) {
+                filteredTransactions = filteredTransactions.filter(t => new Date(t.date.split('/').reverse().join('-')) <= new Date(endDate));
+            }
+
+            updateTransactionList(filteredTransactions);
+        }
+
+        function generateReport() {
+            const filterCategory = document.getElementById('filterCategory').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            let filteredTransactions = transactions;
+
+            if (filterCategory !== 'all') {
+                filteredTransactions = filteredTransactions.filter(t => t.category === filterCategory);
+            }
+
+            if (startDate) {
+                filteredTransactions = filteredTransactions.filter(t => new Date(t.date.split('/').reverse().join('-')) >= new Date(startDate));
+            }
+
+            if (endDate) {
+                filteredTransactions = filteredTransactions.filter(t => new Date(t.date.split('/').reverse().join('-')) <= new Date(endDate));
+            }
+
+            let report = 'Reporte de Transacciones - Tarjeta de Débito Virtual\n';
+            report += '========================================\n';
+            report += `Saldo Actual: $${balance.toFixed(2)}\n`;
+            report += `Filtros Aplicados: Categoría=${filterCategory}, Fecha Inicio=${startDate || 'N/A'}, Fecha Fin=${endDate || 'N/A'}\n\n`;
+            report += 'Historial de Transacciones:\n';
+            filteredTransactions.forEach(t => {
+                report += `${t.date} | ${t.type.charAt(0).toUpperCase() + t.type.slice(1)} | $${t.amount.toFixed(2)} | ${t.category} | ${t.description}\n`;
+            });
+
+            const blob = new Blob([report], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'reporte_transacciones.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
