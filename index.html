@@ -6,9 +6,20 @@
     <title>Tarjeta Virtual</title>
     <meta name="description" content="Mi tarjeta de débito virtual con cafetería">
     <meta name="theme-color" content="#10b981">
-    <link rel="manifest" href="/manifest.json">
+    <!-- Manifest con iconos que SÍ cargan -->
+    <link rel="manifest" href="data:application/manifest+json,{
+      %22name%22:%22Tarjeta Virtual%22,
+      %22short_name%22:%22Tarjeta%22,
+      %22description%22:%22Mi tarjeta de débito virtual con cafetería%22,
+      %22start_url%22:%22/%22,
+      %22display%22:%22standalone%22,
+      %22background_color%22:%22#f3f4f6%22,
+      %22theme_color%22:%22#10b981%22,
+      %22icons%22:[{%22src%22:%22https://i.ibb.co/5Yk2t0X/icon-192.png%22,%22sizes%22:%22192x192%22,%22type%22:%22image/png%22},{%22src%22:%22https://i.ibb.co/5Yk2t0X/icon-512.png%22,%22sizes%22:%22512x512%22,%22type%22:%22image/png%22}]
+    }">
     <link rel="apple-touch-icon" href="https://i.ibb.co/5Yk2t0X/icon-192.png">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/jwt-decode@3.1.2/build/jwt-decode.js"></script>
     <style>
         * { touch-action: manipulation; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f3f4f6; margin: 0; }
@@ -91,6 +102,19 @@
             <div class="mx-4 mt-5 bg-white rounded-2xl p-5 shadow text-center">
                 <p class="text-gray-600 text-sm">Saldo Actual</p>
                 <p class="text-4xl font-bold text-green-600">$<span id="balance">0.00</span></p>
+            </div>
+
+            <!-- Filtros + Reporte -->
+            <div class="mx-4 mt-5 bg-white rounded-2xl p-4 shadow">
+                <select id="filterCategory" onchange="filterTransactions()" class="w-full p-3 mb-2 border border-gray-300 rounded-xl text-lg">
+                    <option value="all">Todas</option>
+                    <option value="general">General</option>
+                    <option value="alimentación">Alimentación</option>
+                    <option value="transporte">Transporte</option>
+                </select>
+                <input type="date" id="startDate" onchange="filterTransactions()" class="w-full p-3 mb-2 border border-gray-300 rounded-xl text-lg">
+                <input type="date" id="endDate" onchange="filterTransactions()" class="w-full p-3 border border-gray-300 rounded-xl text-lg">
+                <button onclick="generateReport()" class="w-full bg-teal-600 text-white p-3 rounded-xl mt-3 font-bold">Generar Reporte</button>
             </div>
 
             <!-- Formulario Transacción -->
@@ -197,7 +221,58 @@
             renderMenu();
         }
 
-        // === AUTH SIN JWT ===
+        // === FILTROS Y REPORTE ===
+        function filterTransactions() {
+            const cat = document.getElementById('filterCategory').value;
+            const start = document.getElementById('startDate').value;
+            const end = document.getElementById('endDate').value;
+            let filtered = transactions;
+            if (cat !== 'all') filtered = filtered.filter(t => t.category === cat);
+            if (start) filtered = filtered.filter(t => t.date >= start);
+            if (end) filtered = filtered.filter(t => t.date <= end);
+            renderTransactions(filtered);
+        }
+
+        function renderTransactions(list = transactions) {
+            const container = document.getElementById('transactionList');
+            container.innerHTML = '';
+            list.forEach(t => {
+                const div = document.createElement('div');
+                div.className = `transaction-item ${t.type}`;
+                div.innerHTML = `
+                    <div class="flex justify-between">
+                        <span class="font-medium">${new Date(t.date).toLocaleDateString('es-ES')}</span>
+                        <span class="${t.type === 'ingreso' ? 'text-green-600' : 'text-red-600'} font-bold">
+                            ${t.type === 'ingreso' ? '+' : '-'}$${t.amount.toFixed(2)}
+                        </span>
+                    </div>
+                    <div class="text-sm text-gray-600 mt-1">${t.category} | ${t.description}</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function generateReport() {
+            const cat = document.getElementById('filterCategory').value;
+            const start = document.getElementById('startDate').value || 'N/A';
+            const end = document.getElementById('endDate').value || 'N/A';
+            let filtered = transactions;
+            if (cat !== 'all') filtered = filtered.filter(t => t.category === cat);
+            if (start !== 'N/A') filtered = filtered.filter(t => t.date >= start);
+            if (end !== 'N/A') filtered = filtered.filter(t => t.date <= end);
+            let report = `Reporte de Transacciones\n========================================\nSaldo: $${balance.toFixed(2)}\nFiltros: ${cat}, ${start} - ${end}\n\n`;
+            filtered.forEach(t => report += `${t.date} | ${t.type} | $${t.amount.toFixed(2)} | ${t.description}\n`);
+            const blob = new Blob([report], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'reporte.txt'; a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // === AUTH SIN JWT (simplificado) ===
+        function showRegister() { document.getElementById('loginContainer').classList.add('hidden'); document.getElementById('registerContainer').classList.remove('hidden'); }
+        function showLogin() { document.getElementById('registerContainer').classList.add('hidden'); document.getElementById('loginContainer').classList.remove('hidden'); }
+
         async function register() {
             const u = document.getElementById('regUsername').value.trim();
             const p = document.getElementById('regPassword').value;
@@ -244,51 +319,20 @@
         }
 
         async function loadTransactions() {
-    try {
-        const res = await fetch('https://tarjeta-backend.onrender.com/transactions');
-        const data = await res.json();
-
-        // <-- ARREGLO AQUÍ: si data tiene error o no es array, pon [] -->
-        if (!Array.isArray(data)) {
-            console.error('Error del servidor:', data);
-            transactions = [];
-        } else {
-            transactions = data.map(t => ({
-                amount: parseFloat(t.amount),
-                type: t.type,
-                category: t.category,
-                date: t.date,
-                description: t.description
-            }));
-        }
-
-        balance = transactions.reduce((a, t) => a + (t.type === 'ingreso' ? t.amount : -t.amount), 0);
-        document.getElementById('balance').textContent = balance.toFixed(2);
-        renderTransactions();
-    } catch (e) {
-        console.error('Error cargando transacciones:', e);
-        transactions = [];
-        renderTransactions();
-    }
-}
-
-        function renderTransactions() {
-            const list = document.getElementById('transactionList');
-            list.innerHTML = '';
-            transactions.forEach(t => {
-                const div = document.createElement('div');
-                div.className = `transaction-item ${t.type}`;
-                div.innerHTML = `
-                    <div class="flex justify-between">
-                        <span class="font-medium">${new Date(t.date).toLocaleDateString('es-ES')}</span>
-                        <span class="${t.type === 'ingreso' ? 'text-green-600' : 'text-red-600'} font-bold">
-                            ${t.type === 'ingreso' ? '+' : '-'}$${t.amount.toFixed(2)}
-                        </span>
-                    </div>
-                    <div class="text-sm text-gray-600 mt-1">${t.category} | ${t.description}</div>
-                `;
-                list.appendChild(div);
-            });
+            try {
+                const res = await fetch('https://tarjeta-backend.onrender.com/transactions');
+                const data = await res.json();
+                transactions = Array.isArray(data) ? data : [];
+                balance = transactions.reduce((a, t) => a + (t.type === 'ingreso' ? t.amount : -t.amount), 0);
+                document.getElementById('balance').textContent = balance.toFixed(2);
+                renderTransactions();
+            } catch (e) {
+                console.error(e);
+                transactions = [];
+                balance = 0;
+                document.getElementById('balance').textContent = '0.00';
+                renderTransactions();
+            }
         }
 
         async function addTransaction() {
