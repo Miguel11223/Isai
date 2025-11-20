@@ -1,6 +1,6 @@
 module.exports = (db, jwt) => {
   const router = require('express').Router();
-  const SECRET_KEY = 'tu_secreto_jwt'; // Cambia por un secreto seguro
+  const SECRET_KEY = 'tu_secreto_jwt'; 
 
   // Generar número de tarjeta único (XXXX XXXX XXXX XXXX)
   function generateCardNumber() {
