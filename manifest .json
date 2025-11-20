@@ -1,0 +1,25 @@
+{
+  "background_color": "#ffffff",
+  "description": "Mi tarjeta de débito virtual con cafetería",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "tarjeta-beta.vercel",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "tarjeta-beta.vercel",
+  "start_url": "/",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "https://i.ibb.co/5Yk2t0X/icon-192.png",
+      "isSquare": false,
+      "isPng": true,
+      "isWebp": false,
+      "isJpg": false,
+      "width": 0,
+      "is512x512": false,
+      "is256x256": false,
+      "is192x192": false
+    }
+  ]
+}
