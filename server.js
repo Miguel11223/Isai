@@ -10,12 +10,17 @@ app.use(cors());
 app.use(express.json());
 
 // Conexión a MySQL
+
 const db = mysql.createConnection({
-  host: 'gateway01.us-east-1.prod.aws.tidbcloud.com',
-  user: 'BSc7pPTvGzj8eiJ.root',
-  password: 'Au0bvj1r6RueK2LE', 
+  host: 'gateway01.us-east-1.prod.aws.tidb.cloud',  // tu host
   port: 4000,
-  database: 'test'
+  user: 'BsC7pPTvGzj8jU.root',                     // tu usuario
+  password: 'Au0bvj1r6RueK2LE',                     // tu contraseña real
+  database: 'test',
+  ssl: {
+    minVersion: 'TLSv1.2',
+    rejectUnauthorized: true   // IMPORTANTE: esto permite la conexión segura
+  }
 });
 
 db.connect(err => {
