@@ -1,25 +1,28 @@
 {
-  "background_color": "#ffffff",
-  "description": "Mi tarjeta de débito virtual con cafetería",
-  "dir": "ltr",
-  "display": "standalone",
-  "name": "tarjeta-beta.vercel",
-  "orientation": "any",
+  "name": "Tarjeta Virtual - Miguel",
+  "short_name": "Tarjeta",
+  "description": "Mi tarjeta de débito virtual con menú de cafetería y control de gastos",
+  "start_url": "/",
   "scope": "/",
-  "short_name": "tarjeta-beta.vercel",
-  "start_url": "/https://tarjeta-beta.vercel.app/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f3f4f6",
   "theme_color": "#10b981",
+  "categories": ["finance", "productivity", "food"],
+  "lang": "es",
+  "dir": "ltr",
   "icons": [
     {
       "src": "https://i.ibb.co/5Yk2t0X/icon-192.png",
-      "isSquare": false,
-      "isPng": true,
-      "isWebp": false,
-      "isJpg": false,
-      "width": 0,
-      "is512x512": false,
-      "is256x256": false,
-      "is192x192": false
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://i.ibb.co/5Yk2t0X/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
