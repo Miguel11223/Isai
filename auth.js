@@ -1,4 +1,4 @@
-module.exports = (db, jwt) => {
+module.exports = (pool, jwt) => {
   const router = require('express').Router();
   const SECRET_KEY = 'tu_secreto_jwt'; 
 
@@ -23,7 +23,7 @@ module.exports = (db, jwt) => {
   // Verificar unicidad del número de tarjeta
   async function isCardNumberUnique(cardNumber) {
     return new Promise((resolve, reject) => {
-      db.query('SELECT card_number FROM usuarios WHERE card_number = ?', [cardNumber], (err, results) => {
+      pool.query('SELECT card_number FROM usuarios WHERE card_number = ?', [cardNumber], (err, results) => {
         if (err) reject(err);
         resolve(results.length === 0);
       });
@@ -41,7 +41,7 @@ module.exports = (db, jwt) => {
     }
 
     // Verificar unicidad de username
-    db.query('SELECT username FROM usuarios WHERE username = ?', [username], async (err, results) => {
+    pool.query('SELECT username FROM usuarios WHERE username = ?', [username], async (err, results) => {
       if (err) return res.status(500).json({ error: 'Error en el servidor' });
       if (results.length > 0) return res.status(400).json({ error: 'El usuario ya existe' });
 
@@ -61,7 +61,7 @@ module.exports = (db, jwt) => {
         const cvv = generateCvv();
         const expiryDate = generateExpiryDate();
 
-        db.query(
+        pool.query(
           'INSERT INTO usuarios (username, password, full_name, card_number, cvv, expiry_date) VALUES (?, ?, ?, ?, ?, ?)',
           [username, password, fullName, cardNumber, cvv, expiryDate],
           (err) => {
@@ -82,7 +82,7 @@ module.exports = (db, jwt) => {
   // Login
   router.post('/login', (req, res) => {
     const { username, password } = req.body;
-    db.query('SELECT * FROM usuarios WHERE username = ?', [username], (err, results) => {
+    pool.query('SELECT * FROM usuarios WHERE username = ?', [username], (err, results) => {
       if (err || results.length === 0 || results[0].password !== password) {
         return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
       }
