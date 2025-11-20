@@ -210,7 +210,7 @@
         async function addTransactionAuto(amount, type, category, date, description) {
             const token = localStorage.getItem('token');
             try {
-                const res = await fetch('http://localhost:3000/transactions', {
+                const res = await fetch('https://tarjeta-backend.onrender.com/transactions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify({ amount, type, category, date, description })
@@ -285,7 +285,7 @@
             const p = document.getElementById('regPassword').value;
             const n = document.getElementById('regFullName').value.trim();
             if (!u || !p || !n || p.length < 6) return alert('Complete todos los campos');
-            const res = await fetch('http://localhost:3000/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p, fullName: n }) });
+            const res = await fetch('https://tarjeta-backend.onrender.com/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p, fullName: n }) });
             const data = await res.json();
             if (data.success) { localStorage.setItem('token', data.token); initMain(data.token); showCafeteriaButton(); } else alert(data.error);
         }
@@ -293,7 +293,7 @@
         async function login() {
             const u = document.getElementById('username').value.trim();
             const p = document.getElementById('password').value;
-            const res = await fetch('http://localhost:3000/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+            const res = await fetch('https://tarjeta-backend.onrender.com/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
             const data = await res.json();
             if (data.success) { localStorage.setItem('token', data.token); initMain(data.token); showCafeteriaButton(); } else alert(data.error);
         }
@@ -313,7 +313,7 @@
         async function loadTransactions() {
             const token = localStorage.getItem('token');
             try {
-                const res = await fetch('http://localhost:3000/transactions', { headers: { 'Authorization': `Bearer ${token}` } });
+                const res = await fetch('https://tarjeta-backend.onrender.com/transactions', { headers: { 'Authorization': `Bearer ${token}` } });
                 const data = await res.json();
                 transactions = data.map(t => ({
                     amount: parseFloat(t.amount),
@@ -336,7 +336,7 @@
             const desc = document.getElementById('description').value;
             if (!a || !d || !desc) return alert('Complete todos');
             const token = localStorage.getItem('token');
-            await fetch('http://localhost:3000/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ amount: a, type: t, category: c, date: d, description: desc }) });
+            await fetch('https://tarjeta-backend.onrender.com/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ amount: a, type: t, category: c, date: d, description: desc }) });
             loadTransactions();
         }
 
