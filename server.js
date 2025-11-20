@@ -9,28 +9,31 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Conexión a MySQL
-
+// === CONEXIÓN CON VARIABLES DE ENTORNO (OBLIGATORIO EN RENDER) ===
 const db = mysql.createConnection({
-  host: 'gateway01.us-east-1.prod.aws.tidb.cloud',  // tu host
-  port: 4000,
-  user: 'BsC7pPTvGzj8jU.root',                     // tu usuario
-  password: 'Au0bvj1r6RueK2LE',                     // tu contraseña real
-  database: 'test',
+  host: process.env.TIDB_HOST,
+  port: parseInt(process.env.TIDB_PORT || '4000'),
+  user: process.env.TIDB_USER,
+  password: process.env.TIDB_PASSWORD,
+  database: process.env.TIDB_DATABASE,
   ssl: {
     minVersion: 'TLSv1.2',
-    rejectUnauthorized: true   // IMPORTANTE: esto permite la conexión segura
+    rejectUnauthorized: true  // TiDB Cloud requiere esto
   }
 });
 
 db.connect(err => {
-  if (err) throw err;
-  console.log('Conectado a MySQL');
+  if (err) {
+    console.error('Error conectando a TiDB:', err);
+    process.exit(1); // Para que Render reinicie si falla
+  } else {
+    console.log('¡Conectado a TiDB Cloud correctamente!');
+  }
 });
 
 // Rutas
 app.use('/auth', authRoutes(db, jwt));
 app.use('/transactions', transactionRoutes(db, jwt));
 
-// Iniciar servidor
-app.listen(3000, () => console.log('Servidor en puerto 3000'));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
