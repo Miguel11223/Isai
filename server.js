@@ -11,11 +11,11 @@ app.use(express.json());
 
 // Conexión a MySQL
 const db = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: '', 
-  port: 3306,
-  database: 'tarjeta_debito'
+  host: 'gateway01.us-east-1.prod.aws.tidbcloud.com',
+  user: 'BSc7pPTvGzj8eiJ.root',
+  password: 'Au0bvj1r6RueK2LE', 
+  port: 4000,
+  database: 'test'
 });
 
 db.connect(err => {
