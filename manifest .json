@@ -7,7 +7,7 @@
   "orientation": "any",
   "scope": "/",
   "short_name": "tarjeta-beta.vercel",
-  "start_url": "/",
+  "start_url": "/https://tarjeta-beta.vercel.app/",
   "theme_color": "#10b981",
   "icons": [
     {
