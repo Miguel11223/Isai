@@ -4,21 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Tarjeta Virtual</title>
-    <meta name="description" content="Tu tarjeta de débito virtual con cafetería integrada">
+    <meta name="description" content="Mi tarjeta de débito virtual con cafetería">
     <meta name="theme-color" content="#10b981">
-
     <link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/icon-192.png">
-
+    <link rel="apple-touch-icon" href="https://i.ibb.co/5Yk2t0X/icon-192.png">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/jwt-decode@3.1.2/build/jwt-decode.js"></script>
-
     <style>
         * { touch-action: manipulation; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f3f4f6; margin: 0; }
         input, select, button { -webkit-appearance: none; appearance: none; outline: none; }
 
-        /* Botón Cafetería */
         #cafeteriaBtn {
             position: fixed; right: 1rem; bottom: 1.5rem; width: 56px; height: 56px;
             background: linear-gradient(135deg, #f59e0b, #f97316); color: white;
@@ -28,7 +23,6 @@
         }
         #cafeteriaBtn:active { transform: scale(0.95); }
 
-        /* Ventana Cafetería */
         #cafeteriaWindow {
             position: fixed; right: 1rem; bottom: 5rem; width: 280px; max-height: 70vh;
             background: white; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);
@@ -99,19 +93,6 @@
                 <p class="text-4xl font-bold text-green-600">$<span id="balance">0.00</span></p>
             </div>
 
-            <!-- Filtros + Reporte -->
-            <div class="mx-4 mt-5 bg-white rounded-2xl p-4 shadow">
-                <select id="filterCategory" onchange="filterTransactions()" class="w-full p-3 mb-2 border border-gray-300 rounded-xl text-lg">
-                    <option value="all">Todas</option>
-                    <option value="general">General</option>
-                    <option value="alimentación">Alimentación</option>
-                    <option value="transporte">Transporte</option>
-                </select>
-                <input type="date" id="startDate" onchange="filterTransactions()" class="w-full p-3 mb-2 border border-gray-300 rounded-xl text-lg">
-                <input type="date" id="endDate" onchange="filterTransactions()" class="w-full p-3 border border-gray-300 rounded-xl text-lg">
-                <button onclick="generateReport()" class="w-full bg-teal-600 text-white p-3 rounded-xl mt-3 font-bold">Generar Reporte</button>
-            </div>
-
             <!-- Formulario Transacción -->
             <div class="mx-4 mt-5 bg-white rounded-2xl p-5 shadow">
                 <input type="number" id="amount" placeholder="Monto" step="0.01" class="w-full p-4 mb-3 border border-gray-300 rounded-xl text-lg">
@@ -153,12 +134,12 @@
         let transactions = [];
 
         const menuItems = [
-            { name: "Café Espresso", price: 25.0, stock: 18, img: "https://images.unsplash.com/photo-1494314671902-399b18174975?w=100&h=100&fit=crop" },
-            { name: "Medialuna", price: 18.0, stock: 7, img: "https://www.minutoneuquen.com/u/fotografias/fotosnoticias/2023/5/30/605420.jpg" },
-            { name: "Jugo de Naranja", price: 30.0, stock: 12, img: "https://5aldia.cl/wp-content/uploads/2018/04/jugo-de-naranja-destacado.jpg" },
-            { name: "Tostado Jamón y Queso", price: 55.0, stock: 3, img: "https://images.unsplash.com/photo-1528207776546-365bb710ee93?w=100&h=100&fit=crop" },
-            { name: "Agua Mineral", price: 15.0, stock: 25, img: "https://th.bing.com/th/id/R.55147f49d6a96ca7bd948ef87e31f52d?rik=XnEg%2bQGgJdw9EA&pid=ImgRaw&r=0" }
-           ];
+            { name: "Café Espresso", price: 2.50, stock: 18, img: "https://images.unsplash.com/photo-1577968893704-920e1e4e8e52?w=100&h=100&fit=crop" },
+            { name: "Medialuna", price: 1.80, stock: 7, img: "https://images.unsplash.com/photo-1550583724-b2692b723b94?w=100&h=100&fit=crop" },
+            { name: "Jugo de Naranja", price: 3.00, stock: 12, img: "https://images.unsplash.com/photo-1600271886715-8d5603491194?w=100&h=100&fit=crop" },
+            { name: "Tostado Jamón y Queso", price: 5.50, stock: 3, img: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=100&h=100&fit=crop" },
+            { name: "Agua Mineral", price: 1.50, stock: 25, img: "https://images.unsplash.com/photo-1593253787488-2c6a2073e7db?w=100&h=100&fit=crop" }
+        ];
 
         function renderMenu() {
             const list = document.getElementById('menuList');
@@ -197,14 +178,13 @@
         }
 
         async function addTransactionAuto(amount, type, category, date, description) {
-            const token = localStorage.getItem('token');
             try {
-                const res = await fetch('https://tarjeta-backend.onrender.com/transactions', {
+                await fetch('https://tarjeta-backend.onrender.com/transactions', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ amount, type, category, date, description })
                 });
-                if (res.ok) loadTransactions();
+                loadTransactions();
             } catch (e) { console.error(e); }
         }
 
@@ -217,22 +197,85 @@
             renderMenu();
         }
 
-        // === FILTROS Y REPORTE ===
-        function filterTransactions() {
-            const cat = document.getElementById('filterCategory').value;
-            const start = document.getElementById('startDate').value;
-            const end = document.getElementById('endDate').value;
-            let filtered = transactions;
-            if (cat !== 'all') filtered = filtered.filter(t => t.category === cat);
-            if (start) filtered = filtered.filter(t => t.date >= start);
-            if (end) filtered = filtered.filter(t => t.date <= end);
-            renderTransactions(filtered);
+        // === AUTH SIN JWT ===
+        async function register() {
+            const u = document.getElementById('regUsername').value.trim();
+            const p = document.getElementById('regPassword').value;
+            const n = document.getElementById('regFullName').value.trim();
+            if (!u || !p || !n || p.length < 6) return alert('Complete todos los campos');
+            const res = await fetch('https://tarjeta-backend.onrender.com/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p, fullName: n }) });
+            const data = await res.json();
+            if (data.success) {
+                const user = data.user;
+                document.getElementById('cardHolder').textContent = user.fullName;
+                document.getElementById('cardNumber').textContent = user.cardNumber;
+                document.getElementById('cvv').textContent = user.cvv;
+                document.getElementById('expiryDate').textContent = user.expiryDate;
+                document.getElementById('registerContainer').classList.add('hidden');
+                document.getElementById('mainContainer').classList.remove('hidden');
+                showCafeteriaButton();
+                loadTransactions();
+            } else alert(data.error);
         }
 
-        function renderTransactions(list = transactions) {
-            const container = document.getElementById('transactionList');
-            container.innerHTML = '';
-            list.forEach(t => {
+        async function login() {
+            const u = document.getElementById('username').value.trim();
+            const p = document.getElementById('password').value;
+            const res = await fetch('https://tarjeta-backend.onrender.com/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+            const data = await res.json();
+            if (data.success) {
+                const user = data.user;
+                document.getElementById('cardHolder').textContent = user.fullName;
+                document.getElementById('cardNumber').textContent = user.cardNumber;
+                document.getElementById('cvv').textContent = user.cvv;
+                document.getElementById('expiryDate').textContent = user.expiryDate;
+                document.getElementById('loginContainer').classList.add('hidden');
+                document.getElementById('mainContainer').classList.remove('hidden');
+                showCafeteriaButton();
+                loadTransactions();
+            } else alert(data.error);
+        }
+
+        function logout() {
+            document.getElementById('mainContainer').classList.add('hidden');
+            document.getElementById('loginContainer').classList.remove('hidden');
+            document.getElementById('cafeteriaBtn').classList.add('hidden');
+            document.getElementById('cafeteriaWindow').classList.remove('open');
+        }
+
+        async function loadTransactions() {
+    try {
+        const res = await fetch('https://tarjeta-backend.onrender.com/transactions');
+        const data = await res.json();
+
+        // <-- ARREGLO AQUÍ: si data tiene error o no es array, pon [] -->
+        if (!Array.isArray(data)) {
+            console.error('Error del servidor:', data);
+            transactions = [];
+        } else {
+            transactions = data.map(t => ({
+                amount: parseFloat(t.amount),
+                type: t.type,
+                category: t.category,
+                date: t.date,
+                description: t.description
+            }));
+        }
+
+        balance = transactions.reduce((a, t) => a + (t.type === 'ingreso' ? t.amount : -t.amount), 0);
+        document.getElementById('balance').textContent = balance.toFixed(2);
+        renderTransactions();
+    } catch (e) {
+        console.error('Error cargando transacciones:', e);
+        transactions = [];
+        renderTransactions();
+    }
+}
+
+        function renderTransactions() {
+            const list = document.getElementById('transactionList');
+            list.innerHTML = '';
+            transactions.forEach(t => {
                 const div = document.createElement('div');
                 div.className = `transaction-item ${t.type}`;
                 div.innerHTML = `
@@ -244,77 +287,8 @@
                     </div>
                     <div class="text-sm text-gray-600 mt-1">${t.category} | ${t.description}</div>
                 `;
-                container.appendChild(div);
+                list.appendChild(div);
             });
-        }
-
-        function generateReport() {
-            const cat = document.getElementById('filterCategory').value;
-            const start = document.getElementById('startDate').value || 'N/A';
-            const end = document.getElementById('endDate').value || 'N/A';
-            let filtered = transactions;
-            if (cat !== 'all') filtered = filtered.filter(t => t.category === cat);
-            if (start !== 'N/A') filtered = filtered.filter(t => t.date >= start);
-            if (end !== 'N/A') filtered = filtered.filter(t => t.date <= end);
-            let report = `Reporte de Transacciones\n========================================\nSaldo: $${balance.toFixed(2)}\nFiltros: ${cat}, ${start} - ${end}\n\n`;
-            filtered.forEach(t => report += `${t.date} | ${t.type} | $${t.amount.toFixed(2)} | ${t.description}\n`);
-            const blob = new Blob([report], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = 'reporte.txt'; a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        // === AUTH Y TRANSACCIONES ===
-        function showRegister() { document.getElementById('loginContainer').classList.add('hidden'); document.getElementById('registerContainer').classList.remove('hidden'); }
-        function showLogin() { document.getElementById('registerContainer').classList.add('hidden'); document.getElementById('loginContainer').classList.remove('hidden'); }
-
-        async function register() {
-            const u = document.getElementById('regUsername').value.trim();
-            const p = document.getElementById('regPassword').value;
-            const n = document.getElementById('regFullName').value.trim();
-            if (!u || !p || !n || p.length < 6) return alert('Complete todos los campos');
-            const res = await fetch('https://tarjeta-backend.onrender.com/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p, fullName: n }) });
-            const data = await res.json();
-            if (data.success) { localStorage.setItem('token', data.token); initMain(data.token); showCafeteriaButton(); } else alert(data.error);
-        }
-
-        async function login() {
-            const u = document.getElementById('username').value.trim();
-            const p = document.getElementById('password').value;
-            const res = await fetch('https://tarjeta-backend.onrender.com/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
-            const data = await res.json();
-            if (data.success) { localStorage.setItem('token', data.token); initMain(data.token); showCafeteriaButton(); } else alert(data.error);
-        }
-
-        function initMain(token) {
-            const d = jwt_decode(token);
-            document.getElementById('cardHolder').textContent = d.fullName;
-            document.getElementById('cardNumber').textContent = d.cardNumber;
-            document.getElementById('cvv').textContent = d.cvv;
-            document.getElementById('expiryDate').textContent = d.expiryDate;
-            document.getElementById('loginContainer').classList.add('hidden');
-            document.getElementById('registerContainer').classList.add('hidden');
-            document.getElementById('mainContainer').classList.remove('hidden');
-            loadTransactions();
-        }
-
-        async function loadTransactions() {
-            const token = localStorage.getItem('token');
-            try {
-                const res = await fetch('https://tarjeta-backend.onrender.com/transactions', { headers: { 'Authorization': `Bearer ${token}` } });
-                const data = await res.json();
-                transactions = data.map(t => ({
-                    amount: parseFloat(t.amount),
-                    type: t.type,
-                    category: t.category,
-                    date: t.date,
-                    description: t.description
-                }));
-                balance = transactions.reduce((a, t) => a + (t.type === 'ingreso' ? t.amount : -t.amount), 0);
-                document.getElementById('balance').textContent = balance.toFixed(2);
-                renderTransactions();
-            } catch (e) { console.error(e); }
         }
 
         async function addTransaction() {
@@ -324,28 +298,13 @@
             const d = document.getElementById('date').value;
             const desc = document.getElementById('description').value;
             if (!a || !d || !desc) return alert('Complete todos');
-            const token = localStorage.getItem('token');
-            await fetch('https://tarjeta-backend.onrender.com/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ amount: a, type: t, category: c, date: d, description: desc }) });
+            await fetch('https://tarjeta-backend.onrender.com/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: a, type: t, category: c, date: d, description: desc }) });
             loadTransactions();
         }
 
-        function logout() {
-            localStorage.removeItem('token');
-            document.getElementById('mainContainer').classList.add('hidden');
-            document.getElementById('loginContainer').classList.remove('hidden');
-            document.getElementById('cafeteriaBtn').classList.add('hidden');
-            document.getElementById('cafeteriaWindow').classList.remove('open');
-        }
-
         window.onload = () => {
-            const token = localStorage.getItem('token');
-            if (token) {
-                try { initMain(token); showCafeteriaButton(); } catch { localStorage.removeItem('token'); }
-            }
+            loadTransactions();
         };
-
-        // === SERVICE WORKER ELIMINADO (no es necesario y causaba error) ===
-        // Si más adelante quieres offline, te lo agrego con un archivo sw.js real
     </script>
 </body>
 </html>
