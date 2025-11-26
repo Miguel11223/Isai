@@ -51,6 +51,10 @@
         .transaction-item { background: white; margin: 0.5rem 1rem; padding: 1rem; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .transaction-item.ingreso { border-left: 4px solid #10b981; }
         .transaction-item.gasto { border-left: 4px solid #ef4444; }
+        
+        .loading { opacity: 0.6; pointer-events: none; }
+        .success-message { background: #10b981; color: white; padding: 10px; border-radius: 8px; margin: 10px; text-align: center; }
+        .error-message { background: #ef4444; color: white; padding: 10px; border-radius: 8px; margin: 10px; text-align: center; }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -121,8 +125,11 @@
                 </select>
                 <input type="date" id="date" class="w-full p-4 mb-3 border border-gray-300 rounded-xl text-lg">
                 <input type="text" id="description" placeholder="Descripción" class="w-full p-4 mb-4 border border-gray-300 rounded-xl text-lg">
-                <button onclick="addTransaction()" class="w-full bg-green-600 text-white p-4 rounded-xl font-bold text-lg">Agregar</button>
+                <button onclick="addTransaction()" id="addTransactionBtn" class="w-full bg-green-600 text-white p-4 rounded-xl font-bold text-lg">Agregar Transacción</button>
             </div>
+
+            <!-- Mensajes -->
+            <div id="messageContainer"></div>
 
             <!-- Historial -->
             <div id="transactionList" class="mx-4 mt-5 mb-32"></div>
@@ -146,6 +153,7 @@
     <script>
         let balance = 0;
         let transactions = [];
+        let currentFilteredTransactions = [];
 
         const menuItems = [
             { name: "Café Espresso", price: 2.50, stock: 18, img: "https://images.unsplash.com/photo-1577968893704-920e1e4e8e52?w=100&h=100&fit=crop" },
@@ -154,6 +162,20 @@
             { name: "Tostado Jamón y Queso", price: 5.50, stock: 3, img: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=100&h=100&fit=crop" },
             { name: "Agua Mineral", price: 1.50, stock: 25, img: "https://images.unsplash.com/photo-1593253787488-2c6a2073e7db?w=100&h=100&fit=crop" }
         ];
+
+        // Función para mostrar mensajes
+        function showMessage(message, type = 'success') {
+            const container = document.getElementById('messageContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type === 'success' ? 'success-message' : 'error-message';
+            messageDiv.textContent = message;
+            container.appendChild(messageDiv);
+            
+            // Auto-remover después de 3 segundos
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 3000);
+        }
 
         function renderMenu() {
             const list = document.getElementById('menuList');
@@ -193,13 +215,26 @@
 
         async function addTransactionAuto(amount, type, category, date, description) {
             try {
-                await fetch('https://tarjeta-backend.onrender.com/transactions', {
+                const response = await fetch('https://tarjeta-backend.onrender.com/transactions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ amount, type, category, date, description })
                 });
-                loadTransactions();
-            } catch (e) { console.error(e); }
+
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.error || 'Error del servidor');
+                }
+
+                if (result.success) {
+                    await loadTransactions();
+                    showMessage('Compra en cafetería registrada');
+                }
+            } catch (error) {
+                console.error('Error en compra cafetería:', error);
+                showMessage('Error registrando compra: ' + error.message, 'error');
+            }
         }
 
         function toggleCafeteria() {
@@ -216,16 +251,32 @@
             const cat = document.getElementById('filterCategory').value;
             const start = document.getElementById('startDate').value;
             const end = document.getElementById('endDate').value;
+            
             let filtered = transactions;
-            if (cat !== 'all') filtered = filtered.filter(t => t.category === cat);
-            if (start) filtered = filtered.filter(t => t.date >= start);
-            if (end) filtered = filtered.filter(t => t.date <= end);
+            
+            if (cat !== 'all') {
+                filtered = filtered.filter(t => t.category === cat);
+            }
+            if (start) {
+                filtered = filtered.filter(t => t.date >= start);
+            }
+            if (end) {
+                filtered = filtered.filter(t => t.date <= end);
+            }
+            
+            currentFilteredTransactions = filtered;
             renderTransactions(filtered);
         }
 
         function renderTransactions(list = transactions) {
             const container = document.getElementById('transactionList');
             container.innerHTML = '';
+            
+            if (list.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-500 py-8">No hay transacciones</div>';
+                return;
+            }
+            
             list.forEach(t => {
                 const div = document.createElement('div');
                 div.className = `transaction-item ${t.type}`;
@@ -233,7 +284,7 @@
                     <div class="flex justify-between">
                         <span class="font-medium">${new Date(t.date).toLocaleDateString('es-ES')}</span>
                         <span class="${t.type === 'ingreso' ? 'text-green-600' : 'text-red-600'} font-bold">
-                            ${t.type === 'ingreso' ? '+' : '-'}$${t.amount.toFixed(2)}
+                            ${t.type === 'ingreso' ? '+' : '-'}$${parseFloat(t.amount).toFixed(2)}
                         </span>
                     </div>
                     <div class="text-sm text-gray-600 mt-1">${t.category} | ${t.description}</div>
@@ -246,59 +297,115 @@
             const cat = document.getElementById('filterCategory').value;
             const start = document.getElementById('startDate').value || 'N/A';
             const end = document.getElementById('endDate').value || 'N/A';
-            let filtered = transactions;
-            if (cat !== 'all') filtered = filtered.filter(t => t.category === cat);
-            if (start !== 'N/A') filtered = filtered.filter(t => t.date >= start);
-            if (end !== 'N/A') filtered = filtered.filter(t => t.date <= end);
-            let report = `Reporte de Transacciones\n========================================\nSaldo: $${balance.toFixed(2)}\nFiltros: ${cat}, ${start} - ${end}\n\n`;
-            filtered.forEach(t => report += `${t.date} | ${t.type} | $${t.amount.toFixed(2)} | ${t.description}\n`);
+            
+            let filtered = currentFilteredTransactions.length > 0 ? currentFilteredTransactions : transactions;
+            
+            let report = `Reporte de Transacciones\n`;
+            report += `========================================\n`;
+            report += `Saldo: $${balance.toFixed(2)}\n`;
+            report += `Filtros: ${cat}, ${start} - ${end}\n\n`;
+            
+            filtered.forEach(t => {
+                report += `${t.date} | ${t.type} | $${parseFloat(t.amount).toFixed(2)} | ${t.description}\n`;
+            });
+            
             const blob = new Blob([report], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = 'reporte.txt'; a.click();
+            a.href = url;
+            a.download = 'reporte.txt';
+            a.click();
             URL.revokeObjectURL(url);
+            
+            showMessage('Reporte generado y descargado');
         }
 
         // === AUTH SIN JWT (simplificado) ===
-        function showRegister() { document.getElementById('loginContainer').classList.add('hidden'); document.getElementById('registerContainer').classList.remove('hidden'); }
-        function showLogin() { document.getElementById('registerContainer').classList.add('hidden'); document.getElementById('loginContainer').classList.remove('hidden'); }
+        function showRegister() { 
+            document.getElementById('loginContainer').classList.add('hidden'); 
+            document.getElementById('registerContainer').classList.remove('hidden'); 
+        }
+        
+        function showLogin() { 
+            document.getElementById('registerContainer').classList.add('hidden'); 
+            document.getElementById('loginContainer').classList.remove('hidden'); 
+        }
 
         async function register() {
             const u = document.getElementById('regUsername').value.trim();
             const p = document.getElementById('regPassword').value;
             const n = document.getElementById('regFullName').value.trim();
-            if (!u || !p || !n || p.length < 6) return alert('Complete todos los campos');
-            const res = await fetch('https://tarjeta-backend.onrender.com/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p, fullName: n }) });
-            const data = await res.json();
-            if (data.success) {
-                const user = data.user;
-                document.getElementById('cardHolder').textContent = user.fullName;
-                document.getElementById('cardNumber').textContent = user.cardNumber;
-                document.getElementById('cvv').textContent = user.cvv;
-                document.getElementById('expiryDate').textContent = user.expiryDate;
-                document.getElementById('registerContainer').classList.add('hidden');
-                document.getElementById('mainContainer').classList.remove('hidden');
-                showCafeteriaButton();
-                loadTransactions();
-            } else alert(data.error);
+            
+            if (!u || !p || !n || p.length < 6) {
+                showMessage('Complete todos los campos (mín. 6 caracteres en contraseña)', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch('https://tarjeta-backend.onrender.com/auth/register', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ username: u, password: p, fullName: n }) 
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    const user = data.user;
+                    document.getElementById('cardHolder').textContent = user.fullName;
+                    document.getElementById('cardNumber').textContent = user.cardNumber;
+                    document.getElementById('cvv').textContent = user.cvv;
+                    document.getElementById('expiryDate').textContent = user.expiryDate;
+                    document.getElementById('registerContainer').classList.add('hidden');
+                    document.getElementById('mainContainer').classList.remove('hidden');
+                    showCafeteriaButton();
+                    await loadTransactions();
+                    showMessage('Registro exitoso');
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error en registro:', error);
+                showMessage('Error de conexión', 'error');
+            }
         }
 
         async function login() {
             const u = document.getElementById('username').value.trim();
             const p = document.getElementById('password').value;
-            const res = await fetch('https://tarjeta-backend.onrender.com/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
-            const data = await res.json();
-            if (data.success) {
-                const user = data.user;
-                document.getElementById('cardHolder').textContent = user.fullName;
-                document.getElementById('cardNumber').textContent = user.cardNumber;
-                document.getElementById('cvv').textContent = user.cvv;
-                document.getElementById('expiryDate').textContent = user.expiryDate;
-                document.getElementById('loginContainer').classList.add('hidden');
-                document.getElementById('mainContainer').classList.remove('hidden');
-                showCafeteriaButton();
-                loadTransactions();
-            } else alert(data.error);
+            
+            if (!u || !p) {
+                showMessage('Complete usuario y contraseña', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch('https://tarjeta-backend.onrender.com/auth/login', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ username: u, password: p }) 
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    const user = data.user;
+                    document.getElementById('cardHolder').textContent = user.fullName;
+                    document.getElementById('cardNumber').textContent = user.cardNumber;
+                    document.getElementById('cvv').textContent = user.cvv;
+                    document.getElementById('expiryDate').textContent = user.expiryDate;
+                    document.getElementById('loginContainer').classList.add('hidden');
+                    document.getElementById('mainContainer').classList.remove('hidden');
+                    showCafeteriaButton();
+                    await loadTransactions();
+                    showMessage('Bienvenido');
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error en login:', error);
+                showMessage('Error de conexión', 'error');
+            }
         }
 
         function logout() {
@@ -306,38 +413,138 @@
             document.getElementById('loginContainer').classList.remove('hidden');
             document.getElementById('cafeteriaBtn').classList.add('hidden');
             document.getElementById('cafeteriaWindow').classList.remove('open');
+            showMessage('Sesión cerrada');
         }
 
         async function loadTransactions() {
             try {
-                const res = await fetch('https://tarjeta-backend.onrender.com/transactions');
-                const data = await res.json();
+                console.log('Cargando transacciones...');
+                const response = await fetch('https://tarjeta-backend.onrender.com/transactions');
+                
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
                 transactions = Array.isArray(data) ? data : [];
-                balance = transactions.reduce((a, t) => a + (t.type === 'ingreso' ? t.amount : -t.amount), 0);
+                
+                console.log('Transacciones cargadas:', transactions.length);
+                
+                // Calcular balance correctamente
+                balance = transactions.reduce((acc, transaction) => {
+                    const amount = parseFloat(transaction.amount);
+                    return transaction.type === 'ingreso' 
+                        ? acc + amount
+                        : acc - amount;
+                }, 0);
+                
                 document.getElementById('balance').textContent = balance.toFixed(2);
                 renderTransactions();
-            } catch (e) {
-                console.error(e);
+                
+            } catch (error) {
+                console.error('Error cargando transacciones:', error);
                 transactions = [];
                 balance = 0;
                 document.getElementById('balance').textContent = '0.00';
                 renderTransactions();
+                showMessage('Error cargando transacciones', 'error');
             }
         }
 
         async function addTransaction() {
-            const a = parseFloat(document.getElementById('amount').value);
-            const t = document.getElementById('type').value;
-            const c = document.getElementById('category').value;
-            const d = document.getElementById('date').value;
-            const desc = document.getElementById('description').value;
-            if (!a || !d || !desc) return alert('Complete todos');
-            await fetch('https://tarjeta-backend.onrender.com/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: a, type: t, category: c, date: d, description: desc }) });
-            loadTransactions();
+            const amountInput = document.getElementById('amount');
+            const typeInput = document.getElementById('type');
+            const categoryInput = document.getElementById('category');
+            const dateInput = document.getElementById('date');
+            const descriptionInput = document.getElementById('description');
+            const button = document.getElementById('addTransactionBtn');
+            
+            const a = parseFloat(amountInput.value);
+            const t = typeInput.value;
+            const c = categoryInput.value;
+            const d = dateInput.value;
+            const desc = descriptionInput.value.trim();
+
+            // Validaciones más robustas
+            if (!a || a <= 0 || isNaN(a)) {
+                showMessage('Ingrese un monto válido mayor a 0', 'error');
+                amountInput.focus();
+                return;
+            }
+            
+            if (!d) {
+                showMessage('Seleccione una fecha', 'error');
+                dateInput.focus();
+                return;
+            }
+            
+            if (!desc) {
+                showMessage('Ingrese una descripción', 'error');
+                descriptionInput.focus();
+                return;
+            }
+
+            try {
+                // Mostrar loading
+                button.disabled = true;
+                button.textContent = 'Agregando...';
+                button.classList.add('loading');
+
+                const response = await fetch('https://tarjeta-backend.onrender.com/transactions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        amount: a, 
+                        type: t, 
+                        category: c, 
+                        date: d, 
+                        description: desc 
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.error || 'Error del servidor');
+                }
+
+                if (result.success) {
+                    // Limpiar formulario
+                    amountInput.value = '';
+                    descriptionInput.value = '';
+                    // Mantener la fecha actual
+                    dateInput.value = new Date().toISOString().split('T')[0];
+                    
+                    // Recargar transacciones
+                    await loadTransactions();
+                    showMessage('Transacción agregada correctamente');
+                } else {
+                    throw new Error(result.error || 'Error desconocido');
+                }
+                
+            } catch (error) {
+                console.error('Error al agregar transacción:', error);
+                showMessage('Error: ' + error.message, 'error');
+            } finally {
+                // Restaurar botón
+                button.disabled = false;
+                button.textContent = 'Agregar Transacción';
+                button.classList.remove('loading');
+            }
         }
 
+        // Inicialización
         window.onload = () => {
-            loadTransactions();
+            // Establecer fecha actual por defecto
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('date').value = today;
+            
+            // Cargar transacciones si está logueado
+            if (document.getElementById('mainContainer').classList.contains('hidden') === false) {
+                loadTransactions();
+            }
+            
+            console.log('Aplicación iniciada');
         };
     </script>
 </body>

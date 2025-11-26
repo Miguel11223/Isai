@@ -4,9 +4,11 @@ module.exports = (pool) => {
   // === OBTENER TRANSACCIONES ===
   router.get('/', async (req, res) => {
     try {
+      console.log('Obteniendo transacciones...');
       const result = await pool.query(
         'SELECT amount, type, category, date, description FROM transacciones ORDER BY date DESC'
       );
+      console.log('Transacciones encontradas:', result.rows.length);
       res.json(result.rows);
     } catch (err) {
       console.error('Error GET /transactions:', err.message);
@@ -16,6 +18,7 @@ module.exports = (pool) => {
 
   // === AGREGAR TRANSACCIÓN (CON VALIDACIONES FUERTES) ===
   router.post('/', async (req, res) => {
+    console.log('Datos recibidos para transaccion:', req.body);
     let { amount, type, category, date, description } = req.body;
 
     // Validaciones estrictas para evitar el error 500
@@ -41,12 +44,13 @@ module.exports = (pool) => {
         `INSERT INTO transacciones 
          (amount, type, category, date, description) 
          VALUES ($1, $2, $3, $4, $5)`,
-        [amount, type, category || null, date, description.trim()]
+        [amount, type, category || 'general', date, description.trim()]
       );
 
-      res.json({ success: true });
+      console.log('Transaccion guardada exitosamente');
+      res.json({ success: true, message: 'Transacción agregada correctamente' });
     } catch (err) {
-      console.error('ERROR INSERT transacción:', err.message);
+      console.error('ERROR INSERT transaccion:', err.message);
       console.error('Datos recibidos:', req.body);
       res.status(500).json({ 
         error: 'Error al guardar transacción', 

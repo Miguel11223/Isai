@@ -17,7 +17,7 @@ pool.connect((err) => {
     console.error('Error conectando a Neon:', err.message);
     process.exit(1);
   }
-  console.log('¡CONECTADO A NEON.TECH SIN JWT!');
+  console.log('CONECTADO A NEON.TECH SIN JWT');
 });
 
 // === RUTAS SIN AUTENTICACIÓN ===
@@ -44,6 +44,7 @@ app.post('/auth/register', async (req, res) => {
 
     res.json({ success: true, user: { fullName, cardNumber, cvv, expiryDate } });
   } catch (err) {
+    console.error('Error en registro:', err);
     res.status(500).json({ error: 'Error en el servidor' });
   }
 });
@@ -58,29 +59,60 @@ app.post('/auth/login', async (req, res) => {
     const user = result.rows[0];
     res.json({ success: true, user: { fullName: user.full_name, cardNumber: user.card_number, cvv: user.cvv, expiryDate: user.expiry_date } });
   } catch (err) {
+    console.error('Error en login:', err);
     res.status(500).json({ error: 'Error en el servidor' });
   }
 });
 
 app.get('/transactions', async (req, res) => {
   try {
+    console.log('Obteniendo transacciones...');
     const result = await pool.query('SELECT amount, type, category, date, description FROM transacciones ORDER BY date DESC');
+    console.log('Transacciones encontradas:', result.rows.length);
     res.json(result.rows);
   } catch (err) {
+    console.error('Error al obtener transacciones:', err);
     res.status(500).json({ error: 'Error al obtener transacciones' });
   }
 });
 
 app.post('/transactions', async (req, res) => {
+  console.log('Datos recibidos para transaccion:', req.body);
   const { amount, type, category, date, description } = req.body;
+  
+  // Validaciones
+  if (!amount || isNaN(amount) || amount <= 0) {
+    return res.status(400).json({ error: 'El monto debe ser un número positivo' });
+  }
+  
+  if (!type || !['ingreso', 'gasto'].includes(type)) {
+    return res.status(400).json({ error: 'Tipo debe ser "ingreso" o "gasto"' });
+  }
+  
+  if (!date || date.trim() === '') {
+    return res.status(400).json({ error: 'La fecha es obligatoria' });
+  }
+  
+  if (!description || description.trim() === '') {
+    return res.status(400).json({ error: 'La descripción es obligatoria' });
+  }
+
   try {
+    const parsedAmount = parseFloat(amount).toFixed(2);
+    
     await pool.query(
       'INSERT INTO transacciones (amount, type, category, date, description) VALUES ($1, $2, $3, $4, $5)',
-      [amount, type, category, date, description]
+      [parsedAmount, type, category || 'general', date, description.trim()]
     );
-    res.json({ success: true });
+    
+    console.log('Transaccion guardada exitosamente');
+    res.json({ success: true, message: 'Transacción agregada correctamente' });
   } catch (err) {
-    res.status(500).json({ error: 'Error al guardar transacción' });
+    console.error('Error al guardar transaccion:', err);
+    res.status(500).json({ 
+      error: 'Error al guardar transacción', 
+      details: err.message 
+    });
   }
 });
 
