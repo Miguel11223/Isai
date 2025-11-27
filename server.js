@@ -36,7 +36,7 @@ app.get('/manifest.json', (req, res) => {
 
 // Ruta para servir favicon.ico
 app.get('/favicon.ico', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'favicon.ico'));
+  res.status(204).end(); // Respuesta vacía sin error
 });
 
 // === RUTAS SIN AUTENTICACIÓN ===
@@ -56,12 +56,23 @@ app.post('/auth/register', async (req, res) => {
     const month = String(Math.floor(1 + Math.random() * 12)).padStart(2, '0');
     const expiryDate = `${month}/${year}`;
 
-    await pool.query(
-      'INSERT INTO usuarios (username, password, full_name, card_number, cvv, expiry_date) VALUES ($1, $2, $3, $4, $5, $6)',
+    const userResult = await pool.query(
+      'INSERT INTO usuarios (username, password, full_name, card_number, cvv, expiry_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
       [username, password, fullName, cardNumber, cvv, expiryDate]
     );
 
-    res.json({ success: true, user: { fullName, cardNumber, cvv, expiryDate } });
+    const userId = userResult.rows[0].id;
+
+    res.json({ 
+      success: true, 
+      user: { 
+        id: userId,
+        fullName, 
+        cardNumber, 
+        cvv, 
+        expiryDate 
+      } 
+    });
   } catch (err) {
     console.error('Error en registro:', err);
     res.status(500).json({ error: 'Error en el servidor' });
@@ -76,21 +87,34 @@ app.post('/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
     }
     const user = result.rows[0];
-    res.json({ success: true, user: { fullName: user.full_name, cardNumber: user.card_number, cvv: user.cvv, expiryDate: user.expiry_date } });
+    res.json({ 
+      success: true, 
+      user: { 
+        id: user.id,
+        fullName: user.full_name, 
+        cardNumber: user.card_number, 
+        cvv: user.cvv, 
+        expiryDate: user.expiry_date 
+      } 
+    });
   } catch (err) {
     console.error('Error en login:', err);
     res.status(500).json({ error: 'Error en el servidor' });
   }
 });
 
-app.get('/transactions', async (req, res) => {
+app.get('/transactions/:userId', async (req, res) => {
+  const { userId } = req.params;
+  
   try {
-    console.log('Obteniendo transacciones...');
+    console.log('Obteniendo transacciones para usuario:', userId);
     const result = await pool.query(`
       SELECT amount, type, category, date, description 
       FROM transacciones 
+      WHERE user_id = $1
       ORDER BY date DESC
-    `);
+    `, [userId]);
+    
     console.log('Transacciones encontradas:', result.rows.length);
     
     // Normalizar los datos para el frontend
@@ -109,11 +133,15 @@ app.get('/transactions', async (req, res) => {
 
 app.post('/transactions', async (req, res) => {
   console.log('Datos recibidos para transaccion:', req.body);
-  const { amount, type, category, date, description } = req.body;
+  const { amount, type, category, date, description, userId } = req.body;
   
   // Validaciones
   if (!amount || isNaN(amount) || amount <= 0) {
     return res.status(400).json({ error: 'El monto debe ser un número positivo' });
+  }
+  
+  if (!userId) {
+    return res.status(400).json({ error: 'ID de usuario requerido' });
   }
   
   // Normalizar el tipo (manejar "Íngreso" con acento)
@@ -134,7 +162,7 @@ app.post('/transactions', async (req, res) => {
     const parsedAmount = parseFloat(amount).toFixed(2);
     const normalizedCategory = (category || 'general').toLowerCase();
     
-    console.log('Insertando transaccion con datos normalizados:');
+    console.log('Insertando transaccion para usuario:', userId);
     console.log('- Amount:', parsedAmount);
     console.log('- Type:', normalizedType);
     console.log('- Category:', normalizedCategory);
@@ -142,10 +170,10 @@ app.post('/transactions', async (req, res) => {
     console.log('- Description:', description.trim());
     
     const result = await pool.query(
-      `INSERT INTO transacciones (amount, type, category, date, description) 
-       VALUES ($1, $2, $3, $4, $5) 
+      `INSERT INTO transacciones (amount, type, category, date, description, user_id) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING id, amount, type, category, date, description`,
-      [parsedAmount, normalizedType, normalizedCategory, date, description.trim()]
+      [parsedAmount, normalizedType, normalizedCategory, date, description.trim(), userId]
     );
     
     console.log('Transaccion guardada exitosamente:', result.rows[0]);
@@ -159,8 +187,7 @@ app.post('/transactions', async (req, res) => {
     console.error('Stack trace:', err.stack);
     res.status(500).json({ 
       error: 'Error al guardar transacción', 
-      details: err.message,
-      hint: 'Verifique la estructura de la tabla transacciones'
+      details: err.message
     });
   }
 });
