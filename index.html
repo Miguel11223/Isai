@@ -6,9 +6,10 @@
     <title>Tarjeta Virtual</title>
     <meta name="description" content="Mi tarjeta de débito virtual con cafetería">
     <meta name="theme-color" content="#10b981">
-    <!-- MANIFEST SIN PLACEHOLDER -->
     <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="https://i.ibb.co/5Yk2t0X/icon-192.png">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💳</text></svg>" type="image/svg+xml">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         * { touch-action: manipulation; }
@@ -105,6 +106,9 @@
                     <option value="general">General</option>
                     <option value="alimentación">Alimentación</option>
                     <option value="transporte">Transporte</option>
+                    <option value="entretenimiento">Entretenimiento</option>
+                    <option value="salud">Salud</option>
+                    <option value="otros">Otros</option>
                 </select>
                 <input type="date" id="startDate" onchange="filterTransactions()" class="w-full p-3 mb-2 border border-gray-300 rounded-xl text-lg">
                 <input type="date" id="endDate" onchange="filterTransactions()" class="w-full p-3 border border-gray-300 rounded-xl text-lg">
@@ -122,6 +126,9 @@
                     <option value="general">General</option>
                     <option value="alimentación">Alimentación</option>
                     <option value="transporte">Transporte</option>
+                    <option value="entretenimiento">Entretenimiento</option>
+                    <option value="salud">Salud</option>
+                    <option value="otros">Otros</option>
                 </select>
                 <input type="date" id="date" class="w-full p-4 mb-3 border border-gray-300 rounded-xl text-lg">
                 <input type="text" id="description" placeholder="Descripción" class="w-full p-4 mb-4 border border-gray-300 rounded-xl text-lg">
@@ -429,11 +436,14 @@
                 transactions = Array.isArray(data) ? data : [];
                 
                 console.log('Transacciones cargadas:', transactions.length);
+                console.log('Ejemplo de transacción:', transactions[0]);
                 
                 // Calcular balance correctamente
                 balance = transactions.reduce((acc, transaction) => {
                     const amount = parseFloat(transaction.amount);
-                    return transaction.type === 'ingreso' 
+                    // Normalizar el tipo por si hay inconsistencias
+                    const type = transaction.type.toLowerCase().replace('íngreso', 'ingreso');
+                    return type === 'ingreso' 
                         ? acc + amount
                         : acc - amount;
                 }, 0);
@@ -447,7 +457,7 @@
                 balance = 0;
                 document.getElementById('balance').textContent = '0.00';
                 renderTransactions();
-                showMessage('Error cargando transacciones', 'error');
+                showMessage('Error cargando transacciones: ' + error.message, 'error');
             }
         }
 
@@ -490,6 +500,8 @@
                 button.textContent = 'Agregando...';
                 button.classList.add('loading');
 
+                console.log('Enviando transacción:', { amount: a, type: t, category: c, date: d, description: desc });
+
                 const response = await fetch('https://tarjeta-backend.onrender.com/transactions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -504,8 +516,18 @@
 
                 const result = await response.json();
                 
+                console.log('Respuesta del servidor:', result);
+                
                 if (!response.ok) {
-                    throw new Error(result.error || 'Error del servidor');
+                    // Mostrar detalles del error del servidor
+                    let errorMessage = result.error || 'Error del servidor';
+                    if (result.details) {
+                        errorMessage += `: ${result.details}`;
+                    }
+                    if (result.hint) {
+                        errorMessage += ` (${result.hint})`;
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 if (result.success) {
@@ -523,7 +545,7 @@
                 }
                 
             } catch (error) {
-                console.error('Error al agregar transacción:', error);
+                console.error('Error completo al agregar transacción:', error);
                 showMessage('Error: ' + error.message, 'error');
             } finally {
                 // Restaurar botón

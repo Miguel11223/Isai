@@ -1,10 +1,14 @@
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Servir archivos estáticos
+app.use(express.static('public'));
 
 // Conexión a Neon (PostgreSQL)
 const pool = new Pool({
@@ -18,6 +22,21 @@ pool.connect((err) => {
     process.exit(1);
   }
   console.log('CONECTADO A NEON.TECH SIN JWT');
+});
+
+// Ruta principal para servir el frontend
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Ruta para servir manifest.json
+app.get('/manifest.json', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'manifest.json'));
+});
+
+// Ruta para servir favicon.ico
+app.get('/favicon.ico', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'favicon.ico'));
 });
 
 // === RUTAS SIN AUTENTICACIÓN ===
@@ -67,9 +86,21 @@ app.post('/auth/login', async (req, res) => {
 app.get('/transactions', async (req, res) => {
   try {
     console.log('Obteniendo transacciones...');
-    const result = await pool.query('SELECT amount, type, category, date, description FROM transacciones ORDER BY date DESC');
+    const result = await pool.query(`
+      SELECT amount, type, category, date, description 
+      FROM transacciones 
+      ORDER BY date DESC
+    `);
     console.log('Transacciones encontradas:', result.rows.length);
-    res.json(result.rows);
+    
+    // Normalizar los datos para el frontend
+    const normalizedTransactions = result.rows.map(transaction => ({
+      ...transaction,
+      type: transaction.type.toLowerCase().replace('íngreso', 'ingreso'),
+      category: transaction.category || 'general'
+    }));
+    
+    res.json(normalizedTransactions);
   } catch (err) {
     console.error('Error al obtener transacciones:', err);
     res.status(500).json({ error: 'Error al obtener transacciones' });
@@ -85,7 +116,9 @@ app.post('/transactions', async (req, res) => {
     return res.status(400).json({ error: 'El monto debe ser un número positivo' });
   }
   
-  if (!type || !['ingreso', 'gasto'].includes(type)) {
+  // Normalizar el tipo (manejar "Íngreso" con acento)
+  const normalizedType = type.toLowerCase().replace('íngreso', 'ingreso');
+  if (!normalizedType || !['ingreso', 'gasto'].includes(normalizedType)) {
     return res.status(400).json({ error: 'Tipo debe ser "ingreso" o "gasto"' });
   }
   
@@ -99,19 +132,35 @@ app.post('/transactions', async (req, res) => {
 
   try {
     const parsedAmount = parseFloat(amount).toFixed(2);
+    const normalizedCategory = (category || 'general').toLowerCase();
     
-    await pool.query(
-      'INSERT INTO transacciones (amount, type, category, date, description) VALUES ($1, $2, $3, $4, $5)',
-      [parsedAmount, type, category || 'general', date, description.trim()]
+    console.log('Insertando transaccion con datos normalizados:');
+    console.log('- Amount:', parsedAmount);
+    console.log('- Type:', normalizedType);
+    console.log('- Category:', normalizedCategory);
+    console.log('- Date:', date);
+    console.log('- Description:', description.trim());
+    
+    const result = await pool.query(
+      `INSERT INTO transacciones (amount, type, category, date, description) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING id, amount, type, category, date, description`,
+      [parsedAmount, normalizedType, normalizedCategory, date, description.trim()]
     );
     
-    console.log('Transaccion guardada exitosamente');
-    res.json({ success: true, message: 'Transacción agregada correctamente' });
+    console.log('Transaccion guardada exitosamente:', result.rows[0]);
+    res.json({ 
+      success: true, 
+      message: 'Transacción agregada correctamente',
+      transaction: result.rows[0]
+    });
   } catch (err) {
     console.error('Error al guardar transaccion:', err);
+    console.error('Stack trace:', err.stack);
     res.status(500).json({ 
       error: 'Error al guardar transacción', 
-      details: err.message 
+      details: err.message,
+      hint: 'Verifique la estructura de la tabla transacciones'
     });
   }
 });
